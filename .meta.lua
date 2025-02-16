@@ -7,7 +7,7 @@
 local xcurl={}
 
 ---@class xcurl.easy
----@operator call:xcurl.easy
+---@operator call:true?,string?,integer?
 ---@field url string?
 ---@field port integer
 ---@field proxy string?
