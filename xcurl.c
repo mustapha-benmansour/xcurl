@@ -229,8 +229,8 @@ static int lcurl_easy_newindex(lua_State * L){
     int ret;
     switch (curl_opt->type) {
     case CURLOT_LONG:{
-        luaL_checktype(L, 3, LUA_TBOOLEAN);
-        ret=curl_easy_setopt(leasy->easy, curl_opt->id, lua_toboolean(L, 3));
+        luaL_checktype(L, 3, LUA_TNUMBER);
+        ret=curl_easy_setopt(leasy->easy, curl_opt->id, lua_tointeger(L, 3));
         break;
     }
     case CURLOT_VALUES:
@@ -985,7 +985,7 @@ static void init_multi_errors_consts(lua_State * L){
 
 
 
-int luaopen_lcurl(lua_State * L){
+int luaopen_xcurl(lua_State * L){
     lua_newtable(L);
     //init_easy_errors_consts(L);
     {

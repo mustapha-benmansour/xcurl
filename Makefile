@@ -1,7 +1,7 @@
 CC=gcc
 PREFIX = /usr/local
 
-OPT= -O2 -Wall -fPIC  -g
+OPT= -O2 -Wall -fPIC  -shared
 
 
 CFLAGS  = -I$(PREFIX)/include/luajit-2.1 
@@ -16,7 +16,7 @@ LDFLAGS += -L$(PREFIX)/lib -lcurl
 MOD = xcurl
 MOD_SO = $(MOD).so
 
-SRCS  =		$(APP).c 
+SRCS  =		$(MOD).c 
 
 
 
@@ -27,7 +27,7 @@ $(MOD_SO): $(SRCS)
 	@$(CC) $(OPT)  $(CFLAGS) -o $@ $^ $(LDFLAGS) 
 
 test: $(MOD_SO)
-	luajit main.lua
+	luajit test.lua
 
 clean:
 	@rm -fv $(MOD_SO)
