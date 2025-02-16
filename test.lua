@@ -51,7 +51,7 @@ local function make_easy(i)
         --print(data) 
         --error('hi')
         if i==10 then
-            error('ERR HNA')
+            error('ERR')
         end
     end
     return easy,function (...)
