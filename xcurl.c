@@ -95,8 +95,8 @@ static void _lcurl_push_error(lua_State * L,int error_no,int upval_idx){
 
 static int lcurl_easy_gc(lua_State * L){
     leasy_t * leasy=lua_touserdata(L,1);
-    int * refp;
-    curl_easy_getinfo(leasy->easy, CURLINFO_PRIVATE,&refp);
+    //int * refp;
+    //curl_easy_getinfo(leasy->easy, CURLINFO_PRIVATE,&refp);
     for (int i=0;i<L_FUNC_REF_LENGTH;i++){
         if (leasy->l_func_ref[i]!=LUA_NOREF){
             luaL_unref(L, LUA_REGISTRYINDEX, leasy->l_func_ref[i]);

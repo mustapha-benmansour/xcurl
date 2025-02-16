@@ -68,6 +68,7 @@ local function add_easy()
     t=t+1
     multi[easy]=function (...)
         t=t-1
+        X()
         fn(...)
     end 
 end
