@@ -34,11 +34,11 @@ end
 
 X()
 
-local multi=xcurl.multi()
+local multi=xcurl.multi:new()
 
 local function make_easy(i)
     ---@type xcurl.easy
-    local easy=xcurl.easy()
+    local easy=xcurl.easy:new()
     easy.url='http://google.com'
     --easy.nobody=false
     easy.followlocation=1

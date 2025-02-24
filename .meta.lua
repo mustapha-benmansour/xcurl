@@ -2,12 +2,13 @@
 ---@meta xcurl
 
 ---@class xcurl
----@field easy fun():xcurl.easy
----@field multi fun():xcurl.multi
+---@field easy xcurl.easy # class not instance
+---@field multi xcurl.multi # class not instance
 local xcurl={}
 
 ---@class xcurl.easy
 ---@operator call:true?,string?,integer?
+---@field new fun(class:xcurl.easy):xcurl.easy
 ---@field url string?
 ---@field port integer
 ---@field proxy string?
@@ -309,7 +310,8 @@ xcurl.easy={}
 
 --readonly
 ---@class xcurl.info
----@field headers fun():string[]|{[string]:string}
+---@field headers string[]|{[string]:string}
+---@field error string # last error
 ---@field effective_url string?
 ---@field response_code integer
 ---@field total_time number
@@ -389,6 +391,7 @@ xcurl.info={}
 
 ---@class xcurl.multi:{[xcurl.easy]:fun(ok:true?,err:string?,errno:integer?)}
 ---@operator call(fun()?):nil
+---@field new fun(class:xcurl.multi):xcurl.multi
 xcurl.multi={}
 
 
