@@ -916,9 +916,9 @@ mperform:
         ret=curl_multi_perform(lmulti->multi, &still_running);
         //curl_multi_poll(lmulti->multi, NULL, 0, 0, &numfds);
         if (ret!=CURLM_OK) goto merrn;
-        msg = curl_multi_info_read(lmulti->multi, &msgq);
 mmsg:
-        if(msg && (msg->msg == CURLMSG_DONE)) {
+        msg = curl_multi_info_read(lmulti->multi, &msgq);
+        if(msg) { //&& (msg->msg == CURLMSG_DONE    // just 'done' expected
             e = msg->easy_handle;
             ret=curl_multi_remove_handle(lmulti->multi, e);
             if (ret!=CURLM_OK) goto merrn;
@@ -950,8 +950,8 @@ mmsg:
             }
             if (lua_pcall(L,narg,0,0)!=LUA_OK)
                 goto merrstk;
+            if (msgq) goto mmsg;
         }
-        if (msgq) goto mmsg;
         if (still_running) goto mperform;
         return 0;
 merrn:
