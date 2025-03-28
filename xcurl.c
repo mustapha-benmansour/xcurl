@@ -558,6 +558,7 @@ static int xcurl_easy_call(lua_State * L){
 
 
 static int xcurl_easy_new(lua_State * L){
+    luaL_checktype(L, 1, LUA_TTABLE);
     CURL * easy=curl_easy_init();
     if (!easy) return luaL_error(L,"no enought memory!");
     leasy_t * leasy=lua_newuserdata(L,sizeof(leasy_t));
@@ -775,7 +776,6 @@ static void xcurl__easy_info_consts(lua_State * L){
 
 typedef struct{
     lua_State * L;
-    //int ref_idx_easy_list;
     CURLM * multi;
 }lmulti_t;
 
@@ -801,12 +801,15 @@ static int xcurl_multi_gc(lua_State *L){
       curl_free(list);
     }
     curl_multi_cleanup(lmulti->multi);
+    lmulti->multi=NULL;
+    lmulti->L=NULL;
     return 0;
 }
 
 
 
 int xcurl_multi_new(lua_State * L){
+    luaL_checktype(L, 1, LUA_TTABLE);
     CURLM * multi=curl_multi_init();
     if (!multi) return luaL_error(L,"no enought memory!");
     lmulti_t * lmulti=lua_newuserdata(L,sizeof(lmulti_t));
@@ -847,6 +850,8 @@ int xcurl_multi_newindex(lua_State * L){
             return 0;
         }
         luaL_checktype(L,3,LUA_TFUNCTION);
+        printf("E %p\n",leasy->easy);
+        printf("M %p\n",lmulti->multi);
         ret=curl_multi_add_handle(lmulti->multi, leasy->easy);
         if (ret!=CURLM_OK){
             xcurl__push_error(L,ret,1);
@@ -867,34 +872,6 @@ int xcurl_multi_newindex(lua_State * L){
         leasy->error_str[0]='\0';
         return 0;
     }
-    /*
-    if (type==LUA_TSTRING){
-        const char * key=lua_tostring(L, 2);
-
-        if (strcmp(key,"chunk_length_penalty_size")==0){
-            ret=curl_multi_setopt(lmulti->multi,)
-        }
-
-        static const char *int_keys[]={
-            "chunk_length_penalty_size",
-            "content_length_penalty_size",
-            "max_host_connections",
-            "max_pipeline_length",
-            "max_total_connections",
-            "maxconnects",
-            "pipelining",
-            "pipelining_site_bl",
-            "pipelining_server_bl",
-            "max_concurrent_streams",
-            NULL
-        };
-        for (int i=0;int_keys[i]!=NULL;i++){
-            if (strcmp(key,int_keys[i])==0){
-                curl_multi_setopt(lmulti->multi,)
-            }
-        }
-        
-    }*/
     return luaL_error(L,"not imp");
 }
 int xcurl_multi_call(lua_State * L){
@@ -908,11 +885,16 @@ int xcurl_multi_call(lua_State * L){
     int type=lua_type(L,2);
 
 mperform:
+    for (int i=0; i<1000; i++) {
         if (type==LUA_TFUNCTION){
             lua_pushvalue(L, 2);
             if (lua_pcall(L,0,0,0)!=LUA_OK) 
                 return lua_error(L);
         }
+        
+    }
+    if (1)return 0; 
+
         ret=curl_multi_perform(lmulti->multi, &still_running);
         //curl_multi_poll(lmulti->multi, NULL, 0, 0, &numfds);
         if (ret!=CURLM_OK) goto merrn;
@@ -958,7 +940,6 @@ merrn:
         xcurl__push_error(L,ret,1);
 merrstk:
         return lua_error(L);
-
 }
 
 
@@ -992,7 +973,7 @@ int luaopen_xcurl(lua_State * L){
         lua_newtable(L);
         xcurl__easy_info_consts(L);
         lua_pushcclosure(L, xcurl_easy_index,1);
-        lua_setfield(L, -2, "__index");
+        lua_setfield(L, -2, "__index"); 
         lua_pushcfunction(L, xcurl_easy_gc);
         lua_setfield(L, -2, "__gc");
         lua_pushcfunction(L, xcurl_easy_newindex);
@@ -1004,6 +985,7 @@ int luaopen_xcurl(lua_State * L){
 
         lua_pushcclosure(L, xcurl_easy_new,0);
         lua_setfield(L,-2,"new");
+
         lua_setfield(L,-2,"easy");
     }
     {
@@ -1020,6 +1002,7 @@ int luaopen_xcurl(lua_State * L){
 
         lua_pushcclosure(L, xcurl_multi_new,0);
         lua_setfield(L,-2,"new");
+
         lua_setfield(L,-2,"multi");
     }
     //lua_pop(L, 1);//pop err const tb frm stack

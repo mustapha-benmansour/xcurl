@@ -1,5 +1,5 @@
 
-
+jit.off(true,true)
 local xcurl=require'xcurl'
 
 
@@ -73,11 +73,15 @@ local function add_easy()
     end 
 end
 
+
+
 add_easy()
 local xt=os.clock()
-multi(function ()
+
+local Fi=0
+local F=function () 
     --local x=os.clock()
-    collectgarbage('collect')
+    --collectgarbage('collect')
     --Xclock()
     --while os.clock()-x<.5 do end
     --error('e')
@@ -86,6 +90,10 @@ multi(function ()
         xt=os.clock()
         X()
     end
-end)
+    Fi=Fi+1
+    print('call',Fi)
+end
+jit.off(F)
+multi(F)
 
 
