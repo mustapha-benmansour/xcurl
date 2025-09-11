@@ -2,13 +2,97 @@
 ---@meta xcurl
 
 ---@class xcurl
----@field easy xcurl.easy # class not instance
----@field multi xcurl.multi # class not instance
+---@field easy fun():xcurl.easy
+---@field multi fun():xcurl.multi
+---@field version fun():string
 local xcurl={}
 
----@class xcurl.easy
----@operator call:true?,string?,integer?
----@field new fun(class:xcurl.easy):xcurl.easy
+
+--readonly
+---@class xcurl.info
+---@field response string
+---@field error {name:string,message:string}? # last error
+---@field headers {[string]:string}
+---@field iheaders string[]
+---@field effective_url string?
+---@field response_code integer
+---@field total_time number
+---@field namelookup_time number
+---@field connect_time number
+---@field pretransfer_time number
+---@field size_upload number
+---@field size_upload_t integer
+---@field size_download number
+---@field size_download_t integer
+---@field speed_download number
+---@field speed_download_t integer
+---@field speed_upload number
+---@field speed_upload_t integer
+---@field header_size integer
+---@field request_size integer
+---@field ssl_verifyresult integer
+---@field filetime integer
+---@field filetime_t integer
+---@field content_length_download number
+---@field content_length_download_t integer
+---@field content_length_upload number
+---@field content_length_upload_t integer
+---@field starttransfer_time number
+---@field content_type string?
+---@field redirect_time number
+---@field redirect_count integer
+---@field public private string?
+---@field http_connectcode integer
+---@field httpauth_avail integer
+---@field proxyauth_avail integer
+---@field os_errno integer
+---@field num_connects integer
+---@field ssl_engines string[]?
+---@field cookielist string[]?
+---@field lastsocket integer
+---@field ftp_entry_path string?
+---@field redirect_url string?
+---@field primary_ip string?
+---@field appconnect_time number
+---@field certinfo ptr
+---@field condition_unmet integer
+---@field rtsp_session_id string
+---@field rtsp_client_cseq integer
+---@field rtsp_server_cseq integer
+---@field rtsp_cseq_recv integer
+---@field primary_port integer
+---@field local_ip string?
+---@field local_port integer
+---@field tls_session ptr
+---@field activesocket socket
+---@field tls_ssl_ptr ptr
+---@field http_version integer
+---@field proxy_ssl_verifyresult integer
+---@field protocol integer
+---@field scheme string?
+---@field total_time_t integer
+---@field namelookup_time_t integer
+---@field connect_time_t integer
+---@field pretransfer_time_t integer
+---@field starttransfer_time_t integer
+---@field redirect_time_t integer
+---@field appconnect_time_t integer
+---@field retry_after integer
+---@field effective_method string?
+---@field proxy_error integer
+---@field referer string?
+---@field cainfo string?
+---@field capath string?
+---@field xfer_id integer
+---@field conn_id integer
+---@field queue_time_t integer
+---@field used_proxy integer
+xcurl.info={}
+
+
+---@class xcurl.easy:xcurl.info
+---@operator call:boolean
+---@field output string|integer|fun(str):(integer?)
 ---@field url string?
 ---@field port integer
 ---@field proxy string?
@@ -308,90 +392,13 @@ xcurl.easy={}
 ---field closesocketdata ptr
 ---field opensocketdata ptr
 
---readonly
----@class xcurl.info
----@field headers string[]|{[string]:string}
----@field error string # last error
----@field effective_url string?
----@field response_code integer
----@field total_time number
----@field namelookup_time number
----@field connect_time number
----@field pretransfer_time number
----@field size_upload number
----@field size_upload_t integer
----@field size_download number
----@field size_download_t integer
----@field speed_download number
----@field speed_download_t integer
----@field speed_upload number
----@field speed_upload_t integer
----@field header_size integer
----@field request_size integer
----@field ssl_verifyresult integer
----@field filetime integer
----@field filetime_t integer
----@field content_length_download number
----@field content_length_download_t integer
----@field content_length_upload number
----@field content_length_upload_t integer
----@field starttransfer_time number
----@field content_type string?
----@field redirect_time number
----@field redirect_count integer
----@field public private string?
----@field http_connectcode integer
----@field httpauth_avail integer
----@field proxyauth_avail integer
----@field os_errno integer
----@field num_connects integer
----@field ssl_engines string[]?
----@field cookielist string[]?
----@field lastsocket integer
----@field ftp_entry_path string?
----@field redirect_url string?
----@field primary_ip string?
----@field appconnect_time number
----@field certinfo ptr
----@field condition_unmet integer
----@field rtsp_session_id string
----@field rtsp_client_cseq integer
----@field rtsp_server_cseq integer
----@field rtsp_cseq_recv integer
----@field primary_port integer
----@field local_ip string?
----@field local_port integer
----@field tls_session ptr
----@field activesocket socket
----@field tls_ssl_ptr ptr
----@field http_version integer
----@field proxy_ssl_verifyresult integer
----@field protocol integer
----@field scheme string?
----@field total_time_t integer
----@field namelookup_time_t integer
----@field connect_time_t integer
----@field pretransfer_time_t integer
----@field starttransfer_time_t integer
----@field redirect_time_t integer
----@field appconnect_time_t integer
----@field retry_after integer
----@field effective_method string?
----@field proxy_error integer
----@field referer string?
----@field cainfo string?
----@field capath string?
----@field xfer_id integer
----@field conn_id integer
----@field queue_time_t integer
----@field used_proxy integer
-xcurl.info={}
 
 
 
----@class xcurl.multi:{[xcurl.easy]:fun(ok:true?,err:string?,errno:integer?)}
----@operator call(fun()?):nil
----@field new fun(class:xcurl.multi):xcurl.multi
+
+---@class xcurl.multi
+---@field add fun(self:xcurl.multi,easy:xcurl.easy,on_done:fun(ok:boolean))
+---@field perform fun(self:xcurl.multi):integer
 xcurl.multi={}
 
 

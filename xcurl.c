@@ -12,6 +12,7 @@
 #include <string.h>
 #include <sys/types.h>
 
+#include "xcurlconst.h"
 
 
 /*
@@ -40,6 +41,7 @@ typedef enum{
     L_FUNC_REF_LENGTH
 }L_FUNC_REF;
 */
+
 
 typedef enum{
     C_PTR_SLIST_HTTPHEADER=0,
@@ -271,6 +273,7 @@ static size_t cb_WRITEFUNCTION(char *bytes, size_t size, size_t nmemb, void *use
             return CURL_WRITEFUNC_ERROR;
         }
         memcpy(io->buffer.ptr + io->buffer.len,bytes,nbytes);
+        io->buffer.len+=nbytes;
         return nbytes;
     }
     if (io->type==IO_FILE){
@@ -304,7 +307,7 @@ static size_t cb_WRITEFUNCTION(char *bytes, size_t size, size_t nmemb, void *use
             return CURL_WRITEFUNC_ERROR;
         }
         if (lua_type(e->L,-1)!=LUA_TNIL)
-            nbytes=lua_tointeger(e->L,-1);
+            nbytes=(size_t)lua_tonumber(e->L,-1);
         lua_pop(e->L, 1);
         return nbytes;
     }
@@ -383,7 +386,6 @@ static size_t cb_XFERINFOFUNCTION(void *userdata,
 #define INVALID_VAL luaL_error(L,"invalid value");
 
 static int xcurl__easy_newindex_io(lua_State * L,leasy_t * leasy,int type,int is_input){
-    int rc=CURLE_UNKNOWN_OPTION;
     io_ctx_t *ctx;
     if (is_input)
         return luaL_error(L, "not implemeted yet");
@@ -396,61 +398,47 @@ static int xcurl__easy_newindex_io(lua_State * L,leasy_t * leasy,int type,int is
     
     if (type==LUA_TNIL){
         if (is_input){
-
-        }else{
-            rc=curl_easy_setopt(leasy->easy, CURLOPT_WRITEFUNCTION, NULL);
-            if (!rc)
-                rc=curl_easy_setopt(leasy->easy,CURLOPT_WRITEDATA,NULL);
+            // maybe we need to set upload to 0 ?
         }
-    }else{
-        if (!is_input && type==LUA_TNUMBER){
-            lua_Integer n = lua_tointeger(L, 3);
-            if (n<=0) return INVALID_VAL;
-            ctx->type=IO_BUFFER;
-            ctx->buffer.ptr=NULL;
-            ctx->buffer.cap=0;
-            ctx->buffer.len=0;
-            ctx->buffer.max=n;
-            return 0;
-        }else if (type==LUA_TSTRING){
-            lua_pushvalue(L, 3);
-            ctx->type=IO_FILE;
-            ctx->file.ptr=NULL;
-            ctx->file.path=luaL_ref(L, LUA_REGISTRYINDEX);
-            return 0;
-        }else if (type==LUA_TFUNCTION){
-            lua_pushvalue(L, 3);
-            ctx->type=IO_STREAM;
-            ctx->stream=luaL_ref(L, LUA_REGISTRYINDEX);
-            return 0;
-        }else{
-            return INVALID_VAL;
-        }
-        if (is_input){
-
-        }else{
-            rc=curl_easy_setopt(leasy->easy, CURLOPT_WRITEFUNCTION, cb_WRITEFUNCTION);
-            if (!rc)
-                rc=curl_easy_setopt(leasy->easy,CURLOPT_WRITEDATA,leasy);
-        }
+        return 0;
+    } 
+    if (!is_input && type==LUA_TNUMBER){
+        lua_Integer n = lua_tointeger(L, 3);
+        if (n<=0) return INVALID_VAL;
+        ctx->type=IO_BUFFER;
+        ctx->buffer.ptr=NULL;
+        ctx->buffer.cap=0;
+        ctx->buffer.len=0;
+        ctx->buffer.max=n;
+        return 0;
     }
-    if (rc!=CURLE_OK)
-        return luaL_error(L,curl_easy_strerror(rc));
-    return 0;
+    if (type==LUA_TSTRING){
+        lua_pushvalue(L, 3);
+        ctx->type=IO_FILE;
+        ctx->file.ptr=NULL;
+        ctx->file.path=luaL_ref(L, LUA_REGISTRYINDEX);
+        return 0;
+    }
+    if (type==LUA_TFUNCTION){
+        lua_pushvalue(L, 3);
+        ctx->type=IO_STREAM;
+        ctx->stream=luaL_ref(L, LUA_REGISTRYINDEX);
+        return 0;
+    }
+    return INVALID_VAL;
 };
 
 static int xcurl_easy_newindex(lua_State * L){
     leasy_t * leasy=lua_touserdata(L,1);
     int type=lua_type(L,2);
     const struct curl_easyoption * curl_opt;
-    type=lua_type(L, 3);
     if (type==LUA_TSTRING){
         const char * optstr=lua_tostring(L,2);
         if (strcmp(optstr, "output")==0){
-            return xcurl__easy_newindex_io(L,leasy, type, 0);
+            return xcurl__easy_newindex_io(L,leasy, lua_type(L, 3), 0);
         }
         if (strcmp(optstr, "input")==0){
-            return xcurl__easy_newindex_io(L,leasy, type, 1);
+            return xcurl__easy_newindex_io(L,leasy, lua_type(L, 3), 1);
         }
         curl_opt=curl_easy_option_by_name(lua_tostring(L,2));
     }else if (type==LUA_TNUMBER)
@@ -459,6 +447,7 @@ static int xcurl_easy_newindex(lua_State * L){
         curl_opt=NULL;
     if (!curl_opt) return luaL_error(L,"invalid key (unavailable)");
     int ret;
+    type=lua_type(L, 3);
     switch (curl_opt->type) {
     case CURLOT_VALUES:
     case CURLOT_LONG:{
@@ -708,7 +697,7 @@ static int xcurl_easy_index(lua_State * L){
     const char * key=luaL_checkstring(L,2);
     lua_getfield(L,lua_upvalueindex(1),key);
     if (lua_type(L,-1)!=LUA_TNUMBER) {
-        if (strcmp(key,"output")==0){
+        if (strcmp(key,"response")==0){
             if (leasy->output.type==IO_BUFFER){
                 if (leasy->output.buffer.ptr && leasy->output.buffer.len>0){
                     lua_pushlstring(L, leasy->output.buffer.ptr, leasy->output.buffer.len);
@@ -750,27 +739,23 @@ static int xcurl_easy_index(lua_State * L){
             }
             return 1;
         }
-        if (strcmp(key, "error")){
-            if (leasy->rc){
-                lua_createtable(L, 0, 2);
-                lua_pushliteral(L, "name");
-                xcurl__push_error(L, leasy->rc, 2);
-                lua_rawset(L,-3);
-                lua_pushliteral(L, "message");
-                if (leasy->error!=LUA_NOREF){
-                    lua_rawgeti(L, LUA_REGISTRYINDEX, leasy->error);
-                    lua_rawset(L,-3);
-                }else {
-                    size_t len = strlen(leasy->error_str);
-                    if (len && leasy->error_str[len - 1]=='\n') {
-                        leasy->error_str[len - 1]='\0';
-                        len--;
-                    }
-                    lua_pushlstring(L, leasy->error_str, len);
+        if (strcmp(key, "error")==0){
+            lua_createtable(L, 0, 2);
+            lua_pushliteral(L, "name");
+            xcurl__push_error(L, leasy->rc, 2);
+            lua_rawset(L,-3);
+            lua_pushliteral(L, "message");
+            if (leasy->error!=LUA_NOREF){
+                lua_rawgeti(L, LUA_REGISTRYINDEX, leasy->error);
+            }else {
+                size_t len = strlen(leasy->error_str);
+                if (len && leasy->error_str[len - 1]=='\n') {
+                    leasy->error_str[len - 1]='\0';
+                    len--;
                 }
-            }else{
-                lua_pushnil(L);
+                lua_pushlstring(L, leasy->error_str, len);
             }
+            lua_rawset(L,-3);
             return 1;
         }
         return luaL_error(L,"invalid key (unavailable)");
@@ -852,7 +837,6 @@ static int xcurl_easy_call(lua_State * L){
 
 
 static int xcurl_easy_new(lua_State * L){
-    luaL_checktype(L, 1, LUA_TTABLE);
     CURL * easy=curl_easy_init();
     if (!easy) return luaL_error(L,"not enough memory!");
     leasy_t * e=lua_newuserdata(L,sizeof(leasy_t));
@@ -869,8 +853,10 @@ static int xcurl_easy_new(lua_State * L){
     e->callback.xferinfo=LUA_NOREF;
     e->error=LUA_NOREF;
 
-    curl_easy_setopt(easy, CURLOPT_ERRORBUFFER, e->error);
+    curl_easy_setopt(easy, CURLOPT_ERRORBUFFER, e->error_str);
     curl_easy_setopt(easy, CURLOPT_PRIVATE,NULL);
+    curl_easy_setopt(easy, CURLOPT_WRITEFUNCTION,cb_WRITEFUNCTION);
+    curl_easy_setopt(easy, CURLOPT_WRITEDATA,e);
 
     /*for (int i=0;i<L_FUNC_REF_LENGTH;i++)
         leasy->l_func_ref[i]=LUA_NOREF;*/
@@ -884,183 +870,7 @@ static int xcurl_easy_new(lua_State * L){
 }
 
 
-#define EIV(A) lua_pushinteger(L,CURLE_##A);lua_pushstring(L,#A);lua_rawset(L,-3);
-static void xcurl__easy_errors_consts(lua_State * L){
-    lua_newtable(L);
-	EIV(OK)
-	EIV(UNSUPPORTED_PROTOCOL)
-	EIV(FAILED_INIT)
-	EIV(URL_MALFORMAT)
-	EIV(NOT_BUILT_IN)
-	EIV(COULDNT_RESOLVE_PROXY)
-	EIV(COULDNT_RESOLVE_HOST)
-	EIV(COULDNT_CONNECT)
-	EIV(WEIRD_SERVER_REPLY)
-	EIV(REMOTE_ACCESS_DENIED)
-	EIV(FTP_ACCEPT_FAILED)
-	EIV(FTP_WEIRD_PASS_REPLY)
-	EIV(FTP_ACCEPT_TIMEOUT)
-	EIV(FTP_WEIRD_PASV_REPLY)
-	EIV(FTP_WEIRD_227_FORMAT)
-	EIV(FTP_CANT_GET_HOST)
-	EIV(HTTP2)
-	EIV(FTP_COULDNT_SET_TYPE)
-	EIV(PARTIAL_FILE)
-	EIV(FTP_COULDNT_RETR_FILE)
-	EIV(OBSOLETE20)
-	EIV(QUOTE_ERROR)
-	EIV(HTTP_RETURNED_ERROR)
-	EIV(WRITE_ERROR)
-	EIV(OBSOLETE24)
-	EIV(UPLOAD_FAILED)
-	EIV(READ_ERROR)
-	EIV(OUT_OF_MEMORY)
-	EIV(OPERATION_TIMEDOUT)
-	EIV(OBSOLETE29)
-	EIV(FTP_PORT_FAILED)
-	EIV(FTP_COULDNT_USE_REST)
-	EIV(OBSOLETE32)
-	EIV(RANGE_ERROR)
-	EIV(HTTP_POST_ERROR)
-	EIV(SSL_CONNECT_ERROR)
-	EIV(BAD_DOWNLOAD_RESUME)
-	EIV(FILE_COULDNT_READ_FILE)
-	EIV(LDAP_CANNOT_BIND)
-	EIV(LDAP_SEARCH_FAILED)
-	EIV(OBSOLETE40)
-	EIV(FUNCTION_NOT_FOUND)
-	EIV(ABORTED_BY_CALLBACK)
-	EIV(BAD_FUNCTION_ARGUMENT)
-	EIV(OBSOLETE44)
-	EIV(INTERFACE_FAILED)
-	EIV(OBSOLETE46)
-	EIV(TOO_MANY_REDIRECTS)
-	EIV(UNKNOWN_OPTION)
-	EIV(SETOPT_OPTION_SYNTAX)
-	EIV(OBSOLETE50)
-	EIV(OBSOLETE51)
-	EIV(GOT_NOTHING)
-	EIV(SSL_ENGINE_NOTFOUND)
-	EIV(SSL_ENGINE_SETFAILED)
-	EIV(SEND_ERROR)
-	EIV(RECV_ERROR)
-	EIV(OBSOLETE57)
-	EIV(SSL_CERTPROBLEM)
-	EIV(SSL_CIPHER)
-	EIV(PEER_FAILED_VERIFICATION)
-	EIV(BAD_CONTENT_ENCODING)
-	EIV(OBSOLETE62)
-	EIV(FILESIZE_EXCEEDED)
-	EIV(USE_SSL_FAILED)
-	EIV(SEND_FAIL_REWIND)
-	EIV(SSL_ENGINE_INITFAILED)
-	EIV(LOGIN_DENIED)
-	EIV(TFTP_NOTFOUND)
-	EIV(TFTP_PERM)
-	EIV(REMOTE_DISK_FULL)
-	EIV(TFTP_ILLEGAL)
-	EIV(TFTP_UNKNOWNID)
-	EIV(REMOTE_FILE_EXISTS)
-	EIV(TFTP_NOSUCHUSER)
-	EIV(OBSOLETE75)
-	EIV(OBSOLETE76)
-	EIV(SSL_CACERT_BADFILE)
-	EIV(REMOTE_FILE_NOT_FOUND)
-	EIV(SSH)
-	EIV(SSL_SHUTDOWN_FAILED)
-	EIV(AGAIN)
-	EIV(SSL_CRL_BADFILE)
-	EIV(SSL_ISSUER_ERROR)
-	EIV(FTP_PRET_FAILED)
-	EIV(RTSP_CSEQ_ERROR)
-	EIV(RTSP_SESSION_ERROR)
-	EIV(FTP_BAD_FILE_LIST)
-	EIV(CHUNK_FAILED)
-	EIV(NO_CONNECTION_AVAILABLE)
-	EIV(SSL_PINNEDPUBKEYNOTMATCH)
-	EIV(SSL_INVALIDCERTSTATUS)
-	EIV(HTTP2_STREAM)
-	EIV(RECURSIVE_API_CALL)
-	EIV(AUTH_ERROR)
-	EIV(HTTP3)
-	EIV(QUIC_CONNECT_ERROR)
-	EIV(PROXY)
-	EIV(SSL_CLIENTCERT)
-	EIV(UNRECOVERABLE_POLL)
-	EIV(TOO_LARGE)
-	EIV(ECH_REQUIRED)
-}
-#undef EIV
 
-#define IIV(A,a) lua_pushstring(L,a);lua_pushinteger(L,CURLINFO_##A);lua_rawset(L,-3);
-static void xcurl__easy_info_consts(lua_State * L){
-    lua_newtable(L);
-    IIV(EFFECTIVE_URL,"effective_url")
-    IIV(RESPONSE_CODE,"response_code")
-    IIV(TOTAL_TIME,"total_time")
-    IIV(NAMELOOKUP_TIME,"namelookup_time")
-    IIV(CONNECT_TIME,"connect_time")
-    IIV(PRETRANSFER_TIME,"pretransfer_time")
-    IIV(SIZE_UPLOAD_T,"size_upload_t")
-    IIV(SIZE_DOWNLOAD_T,"size_download_t")
-    IIV(SPEED_DOWNLOAD_T,"speed_download_t")
-    IIV(SPEED_UPLOAD_T,"speed_upload_t")
-    IIV(HEADER_SIZE,"header_size")
-    IIV(REQUEST_SIZE,"request_size")
-    IIV(SSL_VERIFYRESULT,"ssl_verifyresult")
-    IIV(FILETIME,"filetime")
-    IIV(FILETIME_T,"filetime_t")
-    IIV(CONTENT_LENGTH_DOWNLOAD_T,"content_length_download_t")
-    IIV(CONTENT_LENGTH_UPLOAD_T,"content_length_upload_t")
-    IIV(STARTTRANSFER_TIME,"starttransfer_time")
-    IIV(CONTENT_TYPE,"content_type")
-    IIV(REDIRECT_TIME,"redirect_time")
-    IIV(REDIRECT_COUNT,"redirect_count")
-    IIV(PRIVATE,"private")
-    IIV(HTTP_CONNECTCODE,"http_connectcode")
-    IIV(HTTPAUTH_AVAIL,"httpauth_avail")
-    IIV(PROXYAUTH_AVAIL,"proxyauth_avail")
-    IIV(OS_ERRNO,"os_errno")
-    IIV(NUM_CONNECTS,"num_connects")
-    IIV(SSL_ENGINES,"ssl_engines")
-    IIV(COOKIELIST,"cookielist")
-    IIV(FTP_ENTRY_PATH,"ftp_entry_path")
-    IIV(REDIRECT_URL,"redirect_url")
-    IIV(PRIMARY_IP,"primary_ip")
-    IIV(APPCONNECT_TIME,"appconnect_time")
-    IIV(CERTINFO,"certinfo")
-    IIV(CONDITION_UNMET,"condition_unmet")
-    IIV(RTSP_SESSION_ID,"rtsp_session_id")
-    IIV(RTSP_CLIENT_CSEQ,"rtsp_client_cseq")
-    IIV(RTSP_SERVER_CSEQ,"rtsp_server_cseq")
-    IIV(RTSP_CSEQ_RECV,"rtsp_cseq_recv")
-    IIV(PRIMARY_PORT,"primary_port")
-    IIV(LOCAL_IP,"local_ip")
-    IIV(LOCAL_PORT,"local_port")
-    IIV(ACTIVESOCKET,"activesocket")
-    IIV(TLS_SSL_PTR,"tls_ssl_ptr")
-    IIV(HTTP_VERSION,"http_version")
-    IIV(PROXY_SSL_VERIFYRESULT,"proxy_ssl_verifyresult")
-    IIV(SCHEME,"scheme")
-    IIV(TOTAL_TIME_T,"total_time_t")
-    IIV(NAMELOOKUP_TIME_T,"namelookup_time_t")
-    IIV(CONNECT_TIME_T,"connect_time_t")
-    IIV(PRETRANSFER_TIME_T,"pretransfer_time_t")
-    IIV(STARTTRANSFER_TIME_T,"starttransfer_time_t")
-    IIV(REDIRECT_TIME_T,"redirect_time_t")
-    IIV(APPCONNECT_TIME_T,"appconnect_time_t")
-    IIV(RETRY_AFTER,"retry_after")
-    IIV(EFFECTIVE_METHOD,"effective_method")
-    IIV(PROXY_ERROR,"proxy_error")
-    IIV(REFERER,"referer")
-    IIV(CAINFO,"cainfo")
-    IIV(CAPATH,"capath")
-    IIV(XFER_ID,"xfer_id")
-    IIV(CONN_ID,"conn_id")
-    IIV(QUEUE_TIME_T,"queue_time_t")
-    IIV(USED_PROXY,"used_proxy")
-}
-#undef IIV
 
 /*static int xcurl_share_gc(lua_State * L){
     CURLSH ** pshare=lua_touserdata(L,1);
@@ -1082,6 +892,33 @@ typedef struct{
 
 
 
+
+
+static void xcurl__multi_unrefp(lua_State * L,CURL * e){
+    int * refp=NULL;
+    curl_easy_getinfo(e,CURLINFO_PRIVATE,&refp);
+    if (refp!=NULL){
+        luaL_unref(L, LUA_REGISTRYINDEX,*refp);
+        free(refp);
+        curl_easy_setopt(e,CURLOPT_PRIVATE,NULL);
+    }
+}
+
+static void xcurl__multi_refp(lua_State * L,CURL * e,int idx){
+    xcurl__multi_unrefp(L,e);
+    int * refp=malloc(sizeof(int));
+    if (refp){
+        lua_pushvalue(L,idx);
+        *refp=luaL_ref(L,LUA_REGISTRYINDEX);
+        if (curl_easy_setopt(e,CURLOPT_PRIVATE,refp)==CURLE_OK)
+            return;
+        luaL_unref(L, LUA_REGISTRYINDEX,*refp);
+        free(refp);
+    }
+    luaL_error(L,"failed to ref handle");
+}
+
+
 static int xcurl_multi_gc(lua_State *L){
     lmulti_t * lmulti=lua_touserdata(L,1);
     CURL **list = curl_multi_get_handles(lmulti->multi);
@@ -1091,13 +928,7 @@ static int xcurl_multi_gc(lua_State *L){
       for(i = 0; list[i]; i++) {
         CURL * easy=list[i];
         curl_multi_remove_handle(lmulti->multi, easy);
-        int * refp=NULL;
-        curl_easy_getinfo(easy,CURLINFO_PRIVATE,&refp);
-        if (refp!=NULL){
-            luaL_unref(L, LUA_REGISTRYINDEX,*refp);
-            free(refp);
-            curl_easy_setopt(easy,CURLOPT_PRIVATE,NULL);
-        }
+        xcurl__multi_unrefp(L,easy);
       }
       curl_free(list);
     }
@@ -1110,7 +941,6 @@ static int xcurl_multi_gc(lua_State *L){
 
 
 int xcurl_multi_new(lua_State * L){
-    luaL_checktype(L, 1, LUA_TTABLE);
     CURLM * multi=curl_multi_init();
     if (!multi) return luaL_error(L,"not enough memory!");
     lmulti_t * lmulti=lua_newuserdata(L,sizeof(lmulti_t));
@@ -1128,50 +958,39 @@ int xcurl_multi_new(lua_State * L){
     return 1;
 }
 
-
 int xcurl_multi_add(lua_State * L){
     lmulti_t * lmulti=lua_touserdata(L,1);
-    int ret;
-    int type=lua_type(L,2);
-    if (type==LUA_TUSERDATA){
-        leasy_t * leasy=lua_touserdata(L,2);
-        if (lua_isnil(L, 3)){
-            ret=curl_multi_remove_handle(lmulti->multi,leasy->easy);
-            if (ret!=CURLM_OK){
-                xcurl__push_error(L,ret,1);
-                return lua_error(L); 
-            }
-            int * refp;
-            curl_easy_getinfo(leasy->easy,CURLINFO_PRIVATE,&refp);
-            if (refp!=NULL){
-                luaL_unref(L,LUA_REGISTRYINDEX,*refp);
-                free(refp);
-                curl_easy_setopt(leasy->easy,CURLOPT_PRIVATE,NULL);
-            }
-            return 0;
-        }
-        luaL_checktype(L,3,LUA_TFUNCTION);
-        ret=curl_multi_add_handle(lmulti->multi, leasy->easy);
-        if (ret!=CURLM_OK){
-            xcurl__push_error(L,ret,1);
-            return lua_error(L);
-        }
-
-        //we assume that multi do not accept already linked easies
-        // registry easy as global
-        int * refp=malloc(sizeof(int));
-        lua_pushvalue(L,2);
-        *refp=luaL_ref(L,LUA_REGISTRYINDEX);
-        if (curl_easy_setopt(leasy->easy,CURLOPT_PRIVATE,refp)!=CURLE_OK){
-            luaL_unref(L, LUA_REGISTRYINDEX,*refp);
-            free(refp);
-            return luaL_error(L,"failed");
-        }
-        xcurl__easy_prepare(L,leasy);
-        leasy->callback.done=luaL_ref(L,LUA_REGISTRYINDEX);
-        return 0;
+    luaL_checktype(L,2, LUA_TUSERDATA);
+    luaL_checktype(L,3,LUA_TFUNCTION);
+    leasy_t * leasy=lua_touserdata(L,2);
+    int rc;
+    rc=curl_multi_add_handle(lmulti->multi, leasy->easy);
+    if (rc!=CURLM_OK){
+        xcurl__push_error(L,rc,1);
+        return lua_error(L);
     }
-    return luaL_error(L,"not imp");
+    xcurl__multi_refp(L,leasy->easy,2);
+    xcurl__easy_prepare(L,leasy);
+    leasy->callback.done=luaL_ref(L,LUA_REGISTRYINDEX);
+    return 0;
+}
+
+int xcurl_multi_remove(lua_State * L){
+    lmulti_t * lmulti=lua_touserdata(L,1);
+    int rc;
+    luaL_checktype(L,2, LUA_TUSERDATA);
+    leasy_t * leasy=lua_touserdata(L,2);
+    rc=curl_multi_remove_handle(lmulti->multi,leasy->easy);
+    if (rc!=CURLM_OK){
+        xcurl__push_error(L,rc,1);
+        return lua_error(L); 
+    }
+    xcurl__multi_unrefp(L, leasy->easy);
+    if (leasy->callback.done!=LUA_NOREF){
+        luaL_unref(leasy->L,LUA_REGISTRYINDEX,leasy->callback.done);
+        leasy->callback.done=LUA_NOREF;
+    }
+    return 0;
 }
 int xcurl_multi_perform(lua_State * L){
     lmulti_t * lmulti=lua_touserdata(L,1);
@@ -1180,7 +999,6 @@ int xcurl_multi_perform(lua_State * L){
     struct CURLMsg *msg;
     CURL *e ;
     int * refp;
-    int narg;
 
 
     rc=curl_multi_perform(lmulti->multi, &still_running);
@@ -1207,7 +1025,7 @@ mmsg:
         leasy->callback.done=LUA_NOREF;
         leasy->rc=msg->data.result;
         lua_pushboolean(L,msg->data.result==CURLE_OK);
-        if (lua_pcall(L,narg,0,0)!=LUA_OK){
+        if (lua_pcall(L,1,0,0)!=LUA_OK){
             return lua_error(L);
         }
         if (msgq) goto mmsg;
@@ -1237,6 +1055,11 @@ static void xcurl__multi_errors_consts(lua_State * L){
 #undef MIV
 
 
+static int xcurl_version(lua_State * L){
+    lua_pushstring(L, curl_version());
+    return 1;
+}
+
 
 
 
@@ -1250,19 +1073,21 @@ int luaopen_xcurl(lua_State * L){
 
     // xcurl
     lua_newtable(L);
+    lua_pushcfunction(L, xcurl_version);
+    lua_setfield(L, -2, "version");
 
     // easy_mt
     lua_newtable(L);
     //int easy_mt=lua_gettop(L);
-    lua_pushcclosure(L, xcurl_easy_index,1);
+    lua_pushvalue(L, e_info_const);
+    lua_pushvalue(L, e_err_const);
+    lua_pushcclosure(L, xcurl_easy_index,2);
     lua_setfield(L, -2, "__index"); 
     lua_pushcfunction(L, xcurl_easy_gc);
     lua_setfield(L, -2, "__gc");
     lua_pushcfunction(L, xcurl_easy_newindex);
     lua_setfield(L,-2, "__newindex");
-    lua_pushvalue(L, e_info_const);
-    lua_pushvalue(L, e_err_const);
-    lua_pushcclosure(L, xcurl_easy_call,2);// upval 1 : info consts upval 2: err const
+    lua_pushcfunction(L, xcurl_easy_call);// upval 1 : info consts upval 2: err const
     lua_setfield(L,-2, "__call");
     
     lua_pushcclosure(L, xcurl_easy_new,1);// upval 1 : easy_mt
@@ -1276,14 +1101,17 @@ int luaopen_xcurl(lua_State * L){
     lua_setfield(L,-2,"__gc");
     lua_pushvalue(L, m_err_const);
     lua_pushcclosure(L,xcurl_multi_add,1);
-    lua_setfield(L, -3, "add");
+    lua_setfield(L, -2, "add");
+    lua_pushvalue(L, m_err_const);
+    lua_pushcclosure(L,xcurl_multi_remove,1);
+    lua_setfield(L, -2, "remove");
     lua_pushvalue(L,m_err_const);
     lua_pushcclosure(L,xcurl_multi_perform,1);
     lua_setfield(L, -2, "perform");
 
     lua_pushcclosure(L, xcurl_multi_new,1);// upval 1 : multi_mt
     lua_setfield(L,-2,"multi");
-    curl_global_init(CURL_GLOBAL_ALL);
+    curl_global_init(CURL_GLOBAL_DEFAULT);
     return 1;
 }
 

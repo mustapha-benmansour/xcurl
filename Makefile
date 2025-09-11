@@ -7,7 +7,7 @@ OPT= -O2 -Wall -fPIC  -shared
 CFLAGS  = -I$(PREFIX)/include/luajit-2.1 
 
 
-LDFLAGS += -L/usr/lib -lluajit-5.1 
+LDFLAGS += -L/usr/local/lib -lluajit-5.1 
 
 
 CFLAGS += -I$(PREFIX)/include
