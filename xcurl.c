@@ -1129,7 +1129,7 @@ int xcurl_multi_new(lua_State * L){
 }
 
 
-int xcurl_multi_newindex(lua_State * L){
+int xcurl_multi_add(lua_State * L){
     lmulti_t * lmulti=lua_touserdata(L,1);
     int ret;
     int type=lua_type(L,2);
@@ -1173,7 +1173,7 @@ int xcurl_multi_newindex(lua_State * L){
     }
     return luaL_error(L,"not imp");
 }
-int xcurl_multi_call(lua_State * L){
+int xcurl_multi_perform(lua_State * L){
     lmulti_t * lmulti=lua_touserdata(L,1);
     int still_running=1;
     int rc,msgq;
@@ -1181,7 +1181,6 @@ int xcurl_multi_call(lua_State * L){
     CURL *e ;
     int * refp;
     int narg;
-    int type=lua_type(L,2);
 
 
     rc=curl_multi_perform(lmulti->multi, &still_running);
@@ -1271,14 +1270,16 @@ int luaopen_xcurl(lua_State * L){
 
     // multi mt
     lua_newtable(L);
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -2, "__index");
     lua_pushcfunction(L, xcurl_multi_gc);
     lua_setfield(L,-2,"__gc");
     lua_pushvalue(L, m_err_const);
-    lua_pushcclosure(L,xcurl_multi_newindex,1);
-    lua_setfield(L, -3, "__newindex");
+    lua_pushcclosure(L,xcurl_multi_add,1);
+    lua_setfield(L, -3, "add");
     lua_pushvalue(L,m_err_const);
-    lua_pushcclosure(L,xcurl_multi_call,1);
-    lua_setfield(L, -2, "__call");
+    lua_pushcclosure(L,xcurl_multi_perform,1);
+    lua_setfield(L, -2, "perform");
 
     lua_pushcclosure(L, xcurl_multi_new,1);// upval 1 : multi_mt
     lua_setfield(L,-2,"multi");
