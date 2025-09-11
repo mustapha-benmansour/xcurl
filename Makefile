@@ -1,7 +1,7 @@
 CC=gcc
 PREFIX = /usr/local
 
-OPT= -O2 -Wall -fPIC  -shared -g
+OPT= -O2 -Wall -fPIC  -shared
 
 
 CFLAGS  = -I$(PREFIX)/include/luajit-2.1 

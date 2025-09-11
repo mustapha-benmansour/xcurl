@@ -44,6 +44,7 @@ local function make_easy(i)
     easy.followlocation=1
     easy.maxredirs=10
     easy.autoreferer=1
+    easy.timeout_ms=5000
     easy.useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
     easy.ssl_verifyhost=0
     easy.ssl_verifypeer=0
@@ -77,11 +78,9 @@ end
 
 add_easy()
 local xt=os.clock()
-
-local Fi=0
-local F=function () 
+multi(function () 
     --local x=os.clock()
-    --collectgarbage('collect')
+    collectgarbage('collect')
     --Xclock()
     --while os.clock()-x<.5 do end
     --error('e')
@@ -90,10 +89,7 @@ local F=function ()
         xt=os.clock()
         X()
     end
-    Fi=Fi+1
-    print('call',Fi)
-end
-jit.off(F)
-multi(F)
+    print('Hi')
+end)
 
 
