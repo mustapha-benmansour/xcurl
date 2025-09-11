@@ -362,26 +362,33 @@ static size_t cb_HEADERFUNCTION(char *buffer, size_t size,
     lua_pop(L, 1);
     return bytes;
 }
+*/
 static size_t cb_XFERINFOFUNCTION(void *userdata,
                                 curl_off_t dltotal,
                                 curl_off_t dlnow,
                                 curl_off_t ultotal,
                                 curl_off_t ulnow)
 {
-    RAWGET_REF(XFERINFO)
-    lua_pushinteger(L,dltotal);
-    lua_pushinteger(L,dlnow);
-    lua_pushinteger(L,ultotal);
-    lua_pushinteger(L,ulnow);
-    CB_PCALL(4,1)
+    leasy_t * e=(leasy_t *)userdata;
+    lua_rawgeti(e->L, LUA_REGISTRYINDEX, e->callback.xferinfo);
+    lua_pushinteger(e->L,dltotal);
+    lua_pushinteger(e->L,dlnow);
+    lua_pushinteger(e->L,ultotal);
+    lua_pushinteger(e->L,ulnow);
+    if (lua_pcall(e->L, 4, 1, 0)){
+        if (e->error==LUA_NOREF){
+            e->error=luaL_ref(e->L, LUA_REGISTRYINDEX);
+        }else{
+            lua_pop(e->L, 1);
+        }
+        return 1;
+    }
     int ret=0;
-    if (lua_type(L,-1)!=LUA_TNIL)
-        ret=lua_tointeger(L,-1);
-    lua_pop(L, 1);
+    if (lua_type(e->L,-1)!=LUA_TNIL)
+        ret=lua_tointeger(e->L,-1);
+    lua_pop(e->L, 1);
     return ret;
 }
-*/
-
 
 #define INVALID_VAL luaL_error(L,"invalid value");
 
@@ -440,6 +447,20 @@ static int xcurl_easy_newindex(lua_State * L){
         if (strcmp(optstr, "input")==0){
             return xcurl__easy_newindex_io(L,leasy, lua_type(L, 3), 1);
         }
+        if (strcmp(optstr, "on_xferinfo")==0){
+            if (leasy->callback.xferinfo!=LUA_NOREF){
+                luaL_unref(L, LUA_REGISTRYINDEX, leasy->callback.xferinfo);
+                curl_easy_setopt(leasy->easy, CURLOPT_NOPROGRESS, 1);
+            }
+            if (lua_type(L, 3)==LUA_TNIL){
+                return 0;
+            }
+            luaL_checktype(L, 3, LUA_TFUNCTION);
+            lua_pushvalue(L, 3);
+            leasy->callback.xferinfo=luaL_ref(L, LUA_REGISTRYINDEX);
+            curl_easy_setopt(leasy->easy, CURLOPT_NOPROGRESS, 0);
+            return 0;
+        }
         curl_opt=curl_easy_option_by_name(lua_tostring(L,2));
     }else if (type==LUA_TNUMBER)
         curl_opt=curl_easy_option_by_id(lua_tointeger(L,2));
@@ -451,6 +472,8 @@ static int xcurl_easy_newindex(lua_State * L){
     switch (curl_opt->type) {
     case CURLOT_VALUES:
     case CURLOT_LONG:{
+        if (curl_opt->id==CURLOPT_NOPROGRESS)
+            return luaL_error(L, "invalid key (reserved)"); 
         luaL_checktype(L, 3, LUA_TNUMBER);
         ret=curl_easy_setopt(leasy->easy, curl_opt->id, lua_tointeger(L, 3));
         break;
@@ -857,6 +880,10 @@ static int xcurl_easy_new(lua_State * L){
     curl_easy_setopt(easy, CURLOPT_PRIVATE,NULL);
     curl_easy_setopt(easy, CURLOPT_WRITEFUNCTION,cb_WRITEFUNCTION);
     curl_easy_setopt(easy, CURLOPT_WRITEDATA,e);
+    curl_easy_setopt(easy, CURLOPT_XFERINFOFUNCTION,cb_XFERINFOFUNCTION);
+    curl_easy_setopt(easy, CURLOPT_XFERINFODATA,e);
+    curl_easy_setopt(easy, CURLOPT_NOPROGRESS,1);
+    
 
     /*for (int i=0;i<L_FUNC_REF_LENGTH;i++)
         leasy->l_func_ref[i]=LUA_NOREF;*/

@@ -344,7 +344,7 @@ xcurl.info={}
 ---@field chunk_end_function function?
 ---@field fnmatch_function function?
 ---@field closesocketfunction function?
----@field xferinfofunction function?
+---@field on_xferinfo fun(dltotal:integer,dlnow:integer,ultotal:integer,ulnow:integer):(integer?)?
 ---@field resolver_start_function function?
 ---@field trailerfunction function?
 ---@field hstsreadfunction function?

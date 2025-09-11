@@ -58,8 +58,12 @@ local function make_easy(i)
             error('ERR')
         end
     end]]
+    --[[easy.on_xferinfo=function (dltotal, dlnow, ultotal, ulnow)
+        print(dltotal, dlnow, ultotal, ulnow)
+    end]]
     return easy,function (ok)
-        print('on_done',ok,easy.response)
+        print('on_done',ok,easy.error.message)
+
     end
 end
 
