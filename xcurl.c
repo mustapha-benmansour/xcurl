@@ -279,7 +279,7 @@ static size_t cb_WRITEFUNCTION(char *bytes, size_t size, size_t nmemb, void *use
     if (io->type==IO_FILE){
         if (!io->file.ptr){
             lua_rawgeti(e->L, LUA_REGISTRYINDEX, io->file.path);// should always be available (the type is last thing get assigned after all fields are processed)
-            io->file.ptr=fopen(lua_tostring(e->L, -1), "wb");
+            io->file.ptr=fopen(lua_tostring(e->L, -1), "ab");
             if (!io->file.ptr){
                 if (e->error==LUA_NOREF){
                     lua_pushliteral(e->L, "cannot open file : '");
