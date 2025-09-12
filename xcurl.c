@@ -849,10 +849,21 @@ static void xcurl__easy_prepare(lua_State * L,leasy_t * leasy){
     }
 }
 
+static void xcurl__easy_flush_output(leasy_t * e){
+    if (e->output.type==IO_FILE){
+        if (e->output.file.ptr){
+            fflush(e->output.file.ptr);
+            fclose(e->output.file.ptr);
+            e->output.file.ptr=NULL;
+        }
+    }
+}
+
 static int xcurl_easy_call(lua_State * L){
     leasy_t * leasy=lua_touserdata(L,1);
     xcurl__easy_prepare(L, leasy);
     int rc=curl_easy_perform(leasy->easy);
+    xcurl__easy_flush_output(leasy);
     lua_pushboolean(L,rc==CURLE_OK);
     return 1;
 }
@@ -1049,12 +1060,7 @@ mmsg:
         lua_rawgeti(L,LUA_REGISTRYINDEX,leasy->callback.done);
         luaL_unref(L,LUA_REGISTRYINDEX, leasy->callback.done);
         leasy->callback.done=LUA_NOREF;
-        if (leasy->output.type==IO_FILE){
-            if (leasy->output.file.ptr){
-                fclose(leasy->output.file.ptr);
-                leasy->output.file.ptr=NULL;
-            }
-        }
+        xcurl__easy_flush_output(leasy);
         leasy->rc=msg->data.result;
         lua_pushboolean(L,msg->data.result==CURLE_OK);
         if (lua_pcall(L,1,0,0)!=LUA_OK){
