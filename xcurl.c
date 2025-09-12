@@ -921,10 +921,13 @@ typedef struct{
 
 
 
-static void xcurl__multi_unrefp(lua_State * L,CURL * e){
+static void xcurl__multi_unrefp(lua_State * L,CURL * e,int get){
     int * refp=NULL;
     curl_easy_getinfo(e,CURLINFO_PRIVATE,&refp);
     if (refp!=NULL){
+        if (get){
+            lua_rawgeti(L, LUA_REGISTRYINDEX, *refp);
+        }
         luaL_unref(L, LUA_REGISTRYINDEX,*refp);
         free(refp);
         curl_easy_setopt(e,CURLOPT_PRIVATE,NULL);
@@ -932,7 +935,7 @@ static void xcurl__multi_unrefp(lua_State * L,CURL * e){
 }
 
 static void xcurl__multi_refp(lua_State * L,CURL * e,int idx){
-    xcurl__multi_unrefp(L,e);
+    xcurl__multi_unrefp(L,e,0);
     int * refp=malloc(sizeof(int));
     if (refp){
         lua_pushvalue(L,idx);
@@ -955,7 +958,7 @@ static int xcurl_multi_gc(lua_State *L){
       for(i = 0; list[i]; i++) {
         CURL * easy=list[i];
         curl_multi_remove_handle(lmulti->multi, easy);
-        xcurl__multi_unrefp(L,easy);
+        xcurl__multi_unrefp(L,easy,0);
       }
       curl_free(list);
     }
@@ -1012,7 +1015,7 @@ int xcurl_multi_remove(lua_State * L){
         xcurl__push_error(L,rc,1);
         return lua_error(L); 
     }
-    xcurl__multi_unrefp(L, leasy->easy);
+    xcurl__multi_unrefp(L, leasy->easy,0);
     if (leasy->callback.done!=LUA_NOREF){
         luaL_unref(leasy->L,LUA_REGISTRYINDEX,leasy->callback.done);
         leasy->callback.done=LUA_NOREF;
@@ -1025,7 +1028,7 @@ int xcurl_multi_perform(lua_State * L){
     int rc,msgq;
     struct CURLMsg *msg;
     CURL *e ;
-    int * refp;
+
 
 
     rc=curl_multi_perform(lmulti->multi, &still_running);
@@ -1040,16 +1043,18 @@ mmsg:
         if (rc!=CURLM_OK){
             xcurl__push_error(L,rc,1);
         }
-        curl_easy_getinfo(e, CURLINFO_PRIVATE,&refp);
-        lua_rawgeti(L,LUA_REGISTRYINDEX,*refp);
-        luaL_unref(L, LUA_REGISTRYINDEX,*refp);
-        curl_easy_setopt(e,CURLOPT_PRIVATE,NULL);
-        free(refp);
+        xcurl__multi_unrefp(L,e,1);
         leasy_t * leasy= lua_touserdata(L,-1);
         lua_pop(L, 1);
         lua_rawgeti(L,LUA_REGISTRYINDEX,leasy->callback.done);
         luaL_unref(L,LUA_REGISTRYINDEX, leasy->callback.done);
         leasy->callback.done=LUA_NOREF;
+        if (leasy->output.type==IO_FILE){
+            if (leasy->output.file.ptr){
+                fclose(leasy->output.file.ptr);
+                leasy->output.file.ptr=NULL;
+            }
+        }
         leasy->rc=msg->data.result;
         lua_pushboolean(L,msg->data.result==CURLE_OK);
         if (lua_pcall(L,1,0,0)!=LUA_OK){
