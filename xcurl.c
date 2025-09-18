@@ -1041,10 +1041,11 @@ int xcurl_multi_perform(lua_State * L){
     CURL *e ;
 
 
-
+again:
     rc=curl_multi_perform(lmulti->multi, &still_running);
     if (rc!=CURLM_OK){
         xcurl__push_error(L,rc,1);
+        return lua_error(L);
     }
 mmsg:
     msg = curl_multi_info_read(lmulti->multi, &msgq);
@@ -1053,6 +1054,7 @@ mmsg:
         rc=curl_multi_remove_handle(lmulti->multi, e);
         if (rc!=CURLM_OK){
             xcurl__push_error(L,rc,1);
+            return lua_error(L);
         }
         xcurl__multi_unrefp(L,e,1);
         leasy_t * leasy= lua_touserdata(L,-1);
@@ -1067,6 +1069,13 @@ mmsg:
             return lua_error(L);
         }
         if (msgq) goto mmsg;
+        if (still_running){
+            curl_multi_poll(lmulti->multi, NULL, 0, 1000, NULL);
+        }
+        goto again;// may be a new handles added
+    }
+    if (still_running){
+        curl_multi_poll(lmulti->multi, NULL, 0, 1000, NULL);
     }
     lua_pushinteger(L, still_running);
     return 1;        
