@@ -38,6 +38,10 @@ X()
 
 local multi=xcurl.multi()
 
+local i=0
+local t=0;
+local xt=os.clock()
+local add_easy
 local function make_easy(i)
     ---@type xcurl.easy
     local easy=xcurl.easy()
@@ -50,7 +54,7 @@ local function make_easy(i)
     easy.useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
     easy.ssl_verifyhost=0
     easy.ssl_verifypeer=0
-    easy.output=4096
+    easy.output=1024*512
     --[[easy.output=function(data)
         --print(data) 
         --error('hi')
@@ -63,14 +67,21 @@ local function make_easy(i)
     end]]
     return easy,function (ok)
         print('on_done',ok,easy.error.message)
-
+        collectgarbage('collect')
+        if t<100 or os.clock()-xt>2 then
+            add_easy()
+            xt=os.clock()
+            X()
+        end
+        if i==10 then
+            error('ERR')
+        end
     end
 end
 
-local i=0
-local t=0;
 
-local function add_easy()
+
+function add_easy()
     i=i+1
     local easy,fn=make_easy(i)
     t=t+1
@@ -84,15 +95,13 @@ end
 
 
 add_easy()
-local xt=os.clock()
-while multi:perform() > 0 do
-    collectgarbage('collect')
-    if t<100 or os.clock()-xt>2 then
-        add_easy()
-        xt=os.clock()
-        X()
-    end
-end
+
+
+multi:perform(function(err)
+    print('ERR=>',err)
+end)
+
+
 
 
 

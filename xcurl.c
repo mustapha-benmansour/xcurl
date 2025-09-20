@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <stdbool.h>
 
 #include "xcurlconst.h"
 
@@ -921,11 +922,12 @@ static int xcurl_easy_new(lua_State * L){
 
 
 
-
+#define XCURL_M_NEW_HANDLE 1
 
 typedef struct{
     lua_State * L;
     CURLM * multi;
+    int flags;
 }lmulti_t;
 
 
@@ -994,6 +996,7 @@ int xcurl_multi_new(lua_State * L){
     //lmulti->ref_idx_easy_list=luaL_ref(L,LUA_REGISTRYINDEX);
     lmulti->multi=multi;
     lmulti->L=L;
+    lmulti->flags=0;
     lua_pushvalue(L,lua_upvalueindex(1));
     lua_setmetatable(L,-2);
     return 1;
@@ -1012,6 +1015,7 @@ int xcurl_multi_add(lua_State * L){
     }
     xcurl__multi_refp(L,leasy->easy,2);
     xcurl__easy_prepare(L,leasy);
+    lmulti->flags|=XCURL_M_NEW_HANDLE;
     leasy->callback.done=luaL_ref(L,LUA_REGISTRYINDEX);
     return 0;
 }
@@ -1035,7 +1039,9 @@ int xcurl_multi_remove(lua_State * L){
 }
 int xcurl_multi_perform(lua_State * L){
     lmulti_t * lmulti=lua_touserdata(L,1);
+    int type=lua_type(L, 2);
     int still_running=1;
+    bool added=false;
     int rc,msgq;
     struct CURLMsg *msg;
     CURL *e ;
@@ -1065,20 +1071,36 @@ mmsg:
         xcurl__easy_flush_output(leasy);
         leasy->rc=msg->data.result;
         lua_pushboolean(L,msg->data.result==CURLE_OK);
+        lmulti->flags &= ~XCURL_M_NEW_HANDLE;
         if (lua_pcall(L,1,0,0)!=LUA_OK){
-            return lua_error(L);
+            if (type==LUA_TFUNCTION){
+                lua_pushvalue(L, 2);
+                lua_pushvalue(L, -2);
+                if (lua_pcall(L,1,0,0)){
+                    return lua_error(L);
+                }
+                lua_pop(L, 1);// err
+            }else{
+                return lua_error(L);
+            }
+        }
+        if (lmulti->flags & XCURL_M_NEW_HANDLE){
+            added=true;
         }
         if (msgq) goto mmsg;
-        if (still_running){
-            curl_multi_poll(lmulti->multi, NULL, 0, 1000, NULL);
-        }
-        goto again;// may be a new handles added
     }
     if (still_running){
         curl_multi_poll(lmulti->multi, NULL, 0, 1000, NULL);
+        goto again;
     }
-    lua_pushinteger(L, still_running);
-    return 1;        
+    if (added){
+        goto again;
+    }
+    if (still_running){
+        curl_multi_poll(lmulti->multi, NULL, 0, 1000, NULL);
+        goto again;// may be a new handles added
+    }     
+    return 0;
 }
 
 
